@@ -2,6 +2,7 @@ from tqdm import tqdm, trange
 import os
 import re
 import pickle
+import gc
 
 from collections import Counter
 from multiprocessing import Process, Queue
@@ -9,7 +10,7 @@ from multiprocessing import Process, Queue
 from utils import n_grams
 
 OUTPUT_NAME = "dataset.pkl"
-WORKER_SIZE = 10
+WORKER_SIZE = 8
 SAVE_INTERVAL = 3000
 
 splitter = re.compile(r"([\s\W]{1})")
@@ -29,14 +30,22 @@ class Error(object):
 def process(q, file_list):
     for file_name in file_list:
         splitted = []
-        with open(file_name, "rt", encoding="utf-8") as f:
-            lines = f.readlines()
-            for line in lines:
-                line = line.strip()
-                if line:
-                    splitted += [i.strip() for i in splitter.split(line) if i.strip()]
+        try:
+            with open(file_name, "rt", encoding="utf-8") as f:
+                try:
+                    lines = f.readlines()
 
-        q.put(n_grams(splitted))
+                    for line in lines:
+                        line = line.strip()
+                        if line:
+                            splitted += [i.strip() for i in splitter.split(line) if i.strip()]
+
+                    q.put(n_grams(splitted))
+                except Exception as e:
+                    pass
+
+        except FileNotFoundError as e:
+            continue
 
     q.put(Error(done=True))
 
@@ -46,7 +55,7 @@ if __name__ == '__main__':
         if files:
             files_q += [os.path.join(root, f) for f in files]
 
-    print("Total Files: {:,}".format(len(files_q)))
+    tqdm.write("Total Files: {:,}".format(len(files_q)))
 
     workers = []
     for i in range(0, len(files_q), int(len(files_q) / WORKER_SIZE)+1):
@@ -65,6 +74,7 @@ if __name__ == '__main__':
             # Whether process is done or not
             if type(d) == Error:
                 if d.DONE:
+                    tqdm.write("[+] {} process is done".format(done_cnt))
                     done_cnt += 1
                     if done_cnt == WORKER_SIZE:
                         break
@@ -75,8 +85,11 @@ if __name__ == '__main__':
 
                 # Save backup
                 if it is not 0 and it % SAVE_INTERVAL == 0:
-                    with open("results/" + str(SAVE_INTERVAL) + "_" + OUTPUT_NAME, "wb") as f:
+                    with open("results/" + str(it) + "_" + OUTPUT_NAME, "wb") as f:
                         f.write(pickle.dumps(dataset))
+                        del dataset
+                        gc.collect()
+                        dataset = Counter()
 
         except Exception as e:
             print(e)
