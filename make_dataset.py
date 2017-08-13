@@ -18,6 +18,13 @@ data_q = Queue()
 dataset = Counter()
 
 
+class Error(object):
+    DONE = False
+
+    def __init__(self, done):
+        self.DONE = done
+
+
 def process(q, file_list):
     for file_name in file_list:
         splitted = []
@@ -29,6 +36,8 @@ def process(q, file_list):
                     splitted += [i.strip() for i in splitter.split(line) if i.strip()]
 
         q.put(n_grams(splitted))
+
+    q.put(Error(done=True))
 
 
 if __name__ == '__main__':
@@ -45,10 +54,20 @@ if __name__ == '__main__':
     for worker in workers:
         worker.start()
 
-    for i in trange(len(files_q), desc="Process files"):
+    done_cnt = 0
+    pbar = tqdm(total=len(files_q))
+    while True:
         try:
-            d = data_q.get(block=True, timeout=5)
-            dataset.update(d)
+            d = data_q.get(block=True)
+            if type(d) == Error:
+                if d.DONE:
+                    done_cnt += 1
+                    if done_cnt == WORKER_SIZE:
+                        break
+            else:
+                dataset.update(d)
+                pbar.update()
+
         except Exception as e:
             print(e)
 
