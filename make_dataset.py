@@ -9,7 +9,7 @@ from multiprocessing import Process, Queue
 from utils import n_grams
 
 OUTPUT_NAME = "dataset.pkl"
-WORKER_SIZE = 4
+WORKER_SIZE = 16
 
 splitter = re.compile(r"([\s\W]{1})")
 
@@ -32,7 +32,7 @@ def process(q, file_list):
 
 
 if __name__ == '__main__':
-    for root, dirs, files in os.walk("./data"):
+    for root, dirs, files in os.walk("C:\\Users\\yumere\\Downloads\\js_dataset\\data"):
         if files:
             files_q += [os.path.join(root, f) for f in files]
 
@@ -48,9 +48,9 @@ if __name__ == '__main__':
     for i in trange(len(files_q), desc="Process files"):
         try:
             d = data_q.get(block=True, timeout=5)
+            dataset.update(d)
         except Exception as e:
             print(e)
-        dataset.update(d)
 
     for worker in workers:
         worker.join()
