@@ -9,7 +9,8 @@ from multiprocessing import Process, Queue
 from utils import n_grams
 
 OUTPUT_NAME = "dataset.pkl"
-WORKER_SIZE = 16
+WORKER_SIZE = 10
+SAVE_INTERVAL = 3000
 
 splitter = re.compile(r"([\s\W]{1})")
 
@@ -55,10 +56,13 @@ if __name__ == '__main__':
         worker.start()
 
     done_cnt = 0
+    it = 0
     pbar = tqdm(total=len(files_q))
     while True:
         try:
             d = data_q.get(block=True)
+
+            # Whether process is done or not
             if type(d) == Error:
                 if d.DONE:
                     done_cnt += 1
@@ -67,6 +71,12 @@ if __name__ == '__main__':
             else:
                 dataset.update(d)
                 pbar.update()
+                it += 1
+
+                # Save backup
+                if it is not 0 and it % SAVE_INTERVAL == 0:
+                    with open("results/" + str(SAVE_INTERVAL) + "_" + OUTPUT_NAME, "wb") as f:
+                        f.write(pickle.dumps(dataset))
 
         except Exception as e:
             print(e)
@@ -75,5 +85,5 @@ if __name__ == '__main__':
         worker.join()
 
     if OUTPUT_NAME:
-        with open(OUTPUT_NAME, "wb") as f:
+        with open("results/" + OUTPUT_NAME, "wb") as f:
             f.write(pickle.dumps(dataset))
