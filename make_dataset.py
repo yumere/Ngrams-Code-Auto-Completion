@@ -10,9 +10,11 @@ from utils import n_grams
 
 splitter = re.compile(r"([\s\W]{1})")
 WORKER_SIZE = None or mp.cpu_count()
-CHUNK_SIZE = 10
+CHUNK_SIZE = 500
 SAVE_INTERVAL = 5000
 OUTPUT_NAME = "dataset.pkl"
+
+DATA_URL = "/home/yumere/Downloads/data"
 
 
 def myCounter(filename):
@@ -37,7 +39,7 @@ def myCounter(filename):
 if __name__ == '__main__':
     files_q = []
     results = collections.Counter()
-    for root, dirs, files in os.walk(r"C:\Users\yumere\Downloads\js_dataset\data"):
+    for root, dirs, files in os.walk(DATA_URL):
         if files:
             files_q += [os.path.join(root, f) for f in files]
 
@@ -52,13 +54,13 @@ if __name__ == '__main__':
             pbar.update()
 
             if i is not 0 and i % SAVE_INTERVAL == 0:
-                with open("results/{}_{}".format(i, OUTPUT_NAME), "wb") as f:
+                with open("results/3gram/{}_{}".format(i, OUTPUT_NAME), "wb") as f:
                     f.write(pickle.dumps(results))
 
                 results = collections.Counter()
                 gc.collect()
 
-    with open("results/" + OUTPUT_NAME, "wb") as f:
+    with open("results/3gram/" + OUTPUT_NAME, "wb") as f:
         f.write(pickle.dumps(results))
     p.close()
     p.join()

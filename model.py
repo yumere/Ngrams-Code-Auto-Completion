@@ -1,52 +1,71 @@
-import sqlite3
-import multiprocessing as mp
-from tqdm import tqdm
+import random
+
+from sqlalchemy import Column, String, Integer
+from sqlalchemy import create_engine
+from sqlalchemy.engine.url import URL
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+Base = declarative_base()
+
+DB_CONFIG = {
+    'drivername': 'postgresql',
+    'username': 'yumere',
+    'password': 'asd65813',
+    'host': 'localhost',
+    'port': 5432,
+    'database': 'ngram'
+}
+
+engine = create_engine(URL(**DB_CONFIG))
+Session = sessionmaker()
+Session.configure(bind=engine)
 
 
-CHUNK_SIZE = 1000
+class Data(Base):
+    __tablename__ = "ngrams"
+    id = Column(Integer, primary_key=True)
+    key = Column(String, index=True)
+    value = Column(String)
+    cnt = Column(Integer)
+    ngram_type = Column(Integer, index=True)
 
 
-def count_true(inputs):
-    k, v, c = inputs
-    conn = sqlite3.connect("dataset.sqlite")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM train_data where key=?", (k, ))
-    res = cursor.fetchone()
+class NgramModel(object):
+    def __init__(self, n=3):
+        self.n = n
 
-    if res and v == res[1]:
-        # tqdm.write("TRAIN: {} {} {}".format(k, v, c))
-        # tqdm.write("TEST: {} {} {}".format(res[0], res[1], res[2]))
-        # tqdm.write("")
-        return (c, c)
+        self.s = Session()
 
-    return (c, 0)
+    def forward(self, inputs: tuple):
+        if len(inputs) is not self.n - 1:
+            return False
+
+        r = self.s.query(Data.value, Data.cnt).filter(Data.key == str(inputs), Data.ngram_type == self.n).order_by(Data.cnt.desc()).all()
+        if r:
+            res = []
+            max_v = r[0][1]
+
+            ratio = round(max_v / sum([_[1] for _ in r]) * 100, 2)
+
+            for _ in r:
+                if _[1] == max_v:
+                    res.append(_[0])
+
+            val = random.choice(res)
+
+            return (val, ratio)
+
+        else:
+            return False
+
+    def __del__(self):
+        self.s.close()
+
 
 if __name__ == '__main__':
-    conn = sqlite3.connect("dataset.sqlite")
-    cursor = conn.cursor()
-    cursor.execute("SELECT count(*) FROM test_data")
-    row_cnt, = cursor.fetchone()
-    tqdm.write("Row Amount: {:,}".format(row_cnt))
+    m = NgramModel()
+    r = m.forward(("'", 'use'))
+    print(r)
 
-    cursor.execute("SELECT * FROM test_data")
-    testset = cursor.fetchall()
-    # testset = cursor.fetchmany(100)
-
-    tqdm.write("CPU Count: {:,}".format(mp.cpu_count()))
-    p = mp.Pool(mp.cpu_count() * 2)
-
-    total_count = 0
-    correct_count = 0
-    with tqdm(total=row_cnt) as pbar:
-        for i, (t, c) in enumerate(p.imap_unordered(count_true, testset, chunksize=CHUNK_SIZE)):
-            total_count += t
-            correct_count += c
-            pbar.update()
-
-            if i % 100000 == 0:
-                tqdm.write("Total Count: {:,}".format(total_count))
-                tqdm.write("Correct Count : {:,}".format(correct_count))
-
-    tqdm.write("Total Count: {:,}".format(total_count))
-    tqdm.write("Correct Count : {:,}".format(correct_count))
 
